@@ -125,7 +125,7 @@ module Sprockets
       # Returns a reference to the Sprocket's context through
       # the importer.
       def sprockets_context # :nodoc:
-        options[:custom][:sprockets_context]
+        options[:sprockets][:context]
       end
 
       # Returns an options hash where the keys are symbolized

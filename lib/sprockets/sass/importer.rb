@@ -44,7 +44,7 @@ module Sprockets
 
       # Create a Sass::Engine from the given path.
       def engine_from_path(path, base_path, options)
-        context = options[:custom][:sprockets_context]
+        context = options[:sprockets][:context]
         pathname = resolve(context, path, base_path) or return nil
         context.depend_on pathname
         ::Sass::Engine.new evaluate(context, pathname), options.merge(
@@ -57,7 +57,7 @@ module Sprockets
       # Create a Sass::Engine that will handle importing
       # a glob of files.
       def engine_from_glob(glob, base_path, options)
-        context = options[:custom][:sprockets_context]
+        context = options[:sprockets][:context]
         imports = resolve_glob(context, glob, base_path).inject('') do |imports, path|
           context.depend_on path
           relative_path = path.relative_path_from Pathname.new(base_path).dirname
@@ -76,7 +76,9 @@ module Sprockets
       # style paths.
       def resolve(context, path, base_path)
         possible_files(context, path, base_path).each do |file|
-          context.resolve(file) { |found| return found if context.asset_requirable?(found) }
+          found = context.environment.resolve(file.to_s, {accept: context.content_type})
+
+          return found if found
         end
 
         nil
@@ -132,10 +134,13 @@ module Sprockets
       # Sprockets to process the file, but we remove any Sass processors
       # because we need to let the Sass::Engine handle that.
       def evaluate(context, path)
-        attributes = context.environment.attributes_for(path)
-        processors = context.environment.preprocessors(attributes.content_type) + attributes.engines.reverse
-        processors.delete_if { |processor| processor < Tilt::SassTemplate }
-        context.evaluate(path, :processors => processors)
+        asset = context.environment[path]
+
+        return File.binread(asset.filename)
+        # puts '===================================='
+        # ap asset.source
+        # puts '===================================='
+        # context.evaluate(path, :processors => processors)
       end
     end
   end
