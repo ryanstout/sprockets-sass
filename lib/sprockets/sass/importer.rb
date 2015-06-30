@@ -6,8 +6,13 @@ module Sprockets
     class Importer < ::Sass::Importers::Base
       GLOB = /\*|\[.+\]/
 
+      def initialize(processor)
+        @processor = processor
+      end
+
       # @see Sass::Importers::Base#find_relative
       def find_relative(path, base_path, options)
+        puts 'importer find relative '+path
         if path =~ GLOB
           engine_from_glob(path, base_path, options)
         else
@@ -17,6 +22,7 @@ module Sprockets
 
       # @see Sass::Importers::Base#find
       def find(path, options)
+        puts 'importer find '+path
         engine_from_path(path, nil, options)
       end
 
@@ -45,13 +51,18 @@ module Sprockets
       # Create a Sass::Engine from the given path.
       def engine_from_path(path, base_path, options)
         context = options[:sprockets][:context]
-        pathname = resolve(context, path, base_path) or return nil
+
+        pathname = resolve(context, path, base_path)# or return nil
+
+        puts "resolved #{pathname} for #{path}"
+
         context.depend_on pathname
-        ::Sass::Engine.new evaluate(context, pathname), options.merge(
-          :filename => pathname.to_s,
-          :syntax   => syntax(pathname),
-          :importer => self
-        )
+
+        asset = context.environment[pathname]
+
+        engine = @processor.get_sass_engine_for(pathname)
+
+        return engine
       end
 
       # Create a Sass::Engine that will handle importing
@@ -77,7 +88,6 @@ module Sprockets
       def resolve(context, path, base_path)
         possible_files(context, path, base_path).each do |file|
           found = context.environment.resolve(file.to_s, {accept: context.content_type})
-
           return found if found
         end
 
@@ -90,7 +100,7 @@ module Sprockets
         path_with_glob = base_path.dirname.join(glob).to_s
 
         Pathname.glob(path_with_glob).sort.select do |path|
-          path != context.pathname && context.asset_requirable?(path)
+          path != context.pathname && context.environment.resolve(path)
         end
       end
 
@@ -134,7 +144,23 @@ module Sprockets
       # Sprockets to process the file, but we remove any Sass processors
       # because we need to let the Sass::Engine handle that.
       def evaluate(context, path)
+      	# puts 'evaluate '+path
+
+      	# puts '----- getting asset'
         asset = context.environment[path]
+
+        return asset.source
+
+        # ap asset
+
+        # puts '----- after getting asset'
+        # return asset.source
+
+
+
+        # ap asset
+
+        # return asset
 
         return File.binread(asset.filename)
         # puts '===================================='

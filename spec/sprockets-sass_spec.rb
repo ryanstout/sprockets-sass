@@ -60,8 +60,12 @@ describe Sprockets::Sass do
 
   it 'imports files with directives' do
     @assets.file 'main.css.scss', %(@import "dep";)
-    @assets.file 'dep.css', "/*\n *= require subdep\n */"
-    @assets.file 'subdep.css.scss', "$color: blue;\nbody { color: $color; }"
+    # Plik dep.css jest puszczany przez Sass::DirectiveProcessor
+    # dep.css - process_directive powinno moze dzialac bo kopie resolve
+    # register_custom_directive_processor mogloby zadzaial
+    @assets.file 'dep.css', "/*\n *= require depdep\n */"
+    @assets.file 'depdep.css.scss', "$color: blue;\nbody { color: $color; }"
+
     asset = @env['main.css']
     expect(asset.to_s).to include("body {\n  color: blue; }\n")
   end
@@ -128,9 +132,9 @@ describe Sprockets::Sass do
   end
 
   it 'shares Sass environment with other imports' do
-    @assets.file 'main.css.scss', %(@import "dep-1";\n@import "dep-2";)
     @assets.file '_dep-1.scss', '$color: blue;'
     @assets.file '_dep-2.scss', 'body { color: $color; }'
+    @assets.file 'main.css.scss', %(@import "dep-1";\n@import "dep-2";)
     asset = @env['main.css']
     expect(asset.to_s).to eql("body {\n  color: blue; }\n")
   end
@@ -204,48 +208,88 @@ describe Sprockets::Sass do
     expect(asset.to_s).to eql("body {\n  color: blue;\n  background: red; }\n")
   end
 
-  it 'adds dependencies when imported' do
-    @assets.file 'main.css.scss', %(@import "dep";\nbody { color: $color; })
-    dep = @assets.file 'dep.css.scss', '$color: blue;'
+  describe "dependencies" do
+    it 'adds dependencies when imported' do
+      @assets.file 'main.css.scss', %(@import "dep";\nbody { color: $color; })
+      dep = @assets.file 'dep.css.scss', '$color: blue;'
 
-    asset = @env['main.css']
-    expect(asset).to be_fresh(@env)
+      old_asset = @env['main.css']
 
-    mtime = Time.now + 1
-    dep.open('w') { |f| f.write '$color: red;' }
-    dep.utime mtime, mtime
+      # old_digest = asset.hexdigest
+      # old_uri = asset.uri
+      # expect(asset).to be_fresh(@env)
 
-    expect(asset).to_not be_fresh(@env)
-  end
+      mtime = Time.now + 1
+      dep.open('w') { |f| f.write '$color: red;' }
+      dep.utime mtime, mtime
 
-  it 'adds dependencies from assets when imported' do
-    @assets.file 'main.css.scss', %(@import "dep-1";\nbody { color: $color; })
-    @assets.file 'dep-1.css.scss', %(@import "dep-2";\n)
-    dep = @assets.file 'dep-2.css.scss', '$color: blue;'
+      new_asset = @env['main.css']
 
-    asset = @env['main.css']
-    expect(asset).to be_fresh(@env)
+      # new_digest = asset.hexdigest
+      # new_uri = asset.uri
 
-    mtime = Time.now + 1
-    dep.open('w') { |f| f.write '$color: red;' }
-    dep.utime mtime, mtime
+      # puts old_uri
+      # puts new_uri
 
-    expect(asset).to_not be_fresh(@env)
-  end
+      # puts old_digest
+      # puts new_digest
 
-  it 'adds dependencies when imported from a glob' do
-    @assets.file 'main.css.scss', %(@import "folder/*";\nbody { color: $color; background: $bg-color; })
-    @assets.file 'folder/_dep-1.scss', '$color: blue;'
-    dep = @assets.file 'folder/_dep-2.scss', '$bg-color: red;'
+      expect(new_asset == old_asset).to eq(false)
 
-    asset = @env['main.css']
-    expect(asset).to be_fresh(@env)
+      # expect(new_uri).to_not eq(old_uri)
 
-    mtime = Time.now + 1
-    dep.open('w') { |f| f.write "$bg-color: white;" }
-    dep.utime mtime, mtime
+      # expect(asset).to_not be_fresh(@env)
+    end
 
-    expect(asset).to_not be_fresh(@env)
+    # TODO - versionize
+    it 'adds dependencies from assets when imported' do
+      @assets.file 'main.css.scss', %(@import "dep-1";\nbody { color: $color; })
+      @assets.file 'dep-1.css.scss', %(@import "dep-2";\n)
+      dep = @assets.file 'dep-2.css.scss', '$color: blue;'
+
+      old_asset = @env['main.css']
+
+      # old_digest = asset.hexdigest
+      # expect(asset).to be_fresh(@env)
+
+      mtime = Time.now + 1
+      dep.open('w') { |f| f.write '$color: red;' }
+      dep.utime mtime, mtime
+
+      # new_digest = asset.hexdigest
+
+      # expect(new_digest).to_not eq(old_digest)
+
+      new_asset = @env['main.css']
+
+      expect(new_asset == old_asset).to eq(false)
+
+      # expect(asset).to_not be_fresh(@env)
+    end
+
+    it 'adds dependencies when imported from a glob' do
+      @assets.file 'main.css.scss', %(@import "folder/*";\nbody { color: $color; background: $bg-color; })
+      @assets.file 'folder/_dep-1.scss', '$color: blue;'
+      dep = @assets.file 'folder/_dep-2.scss', '$bg-color: red;'
+
+      old_asset = @env['main.css']
+
+      # old_digest = asset.hexdigest
+
+      # expect(asset).to be_fresh(@env)
+
+      mtime = Time.now + 1
+      dep.open('w') { |f| f.write "$bg-color: white;" }
+      dep.utime mtime, mtime
+
+      new_asset = @env['main.css']
+
+      # expect(new_digest).not_to eq(old_digest)
+
+      expect(new_asset == old_asset).to eq(false)
+
+      # expect(asset).to_not be_fresh(@env)
+    end
   end
 
   it "uses the environment's cache" do
@@ -255,10 +299,17 @@ describe Sprockets::Sass do
     @assets.file 'main.css.scss', %($color: blue;\nbody { color: $color; })
 
     @env['main.css'].to_s
-    if Sass.version[:minor] > 2
-      sass_cache = cache.detect.detect { |key, value| value['pathname'] =~ /main\.css\.scss/ }
+
+    # TODO - srednio mu idzie korzystanie z tego cache chyba - INSPECT
+
+    if Gem::Version.new(Sprockets::VERSION) >= Gem::Version.new('3.0')
+      sass_cache = cache.detect { |key, value| value.is_a? Hash and value[:filename] =~ /main\.css\.scss/ }
     else
-      sass_cache = cache.keys.detect { |key| key =~ /main\.css\.scss/ }
+      if Sass.version[:minor] > 2
+        sass_cache = cache.detect.detect { |key, value| value['pathname'] =~ /main\.css\.scss/ }
+      else
+        sass_cache = cache.keys.detect { |key| key =~ /main\.css\.scss/ }
+      end
     end
     expect(sass_cache).to_not be_nil
   end

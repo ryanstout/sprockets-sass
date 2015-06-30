@@ -25,16 +25,17 @@ module Sprockets
     @add_sass_functions = true
   end
 
-    if Gem::Version.new(Sprockets::VERSION) >= Gem::Version.new('3.0')
-      require 'sprockets/sass/sass_processor'
-      require 'sprockets/sass/scss_processor'
+  if Gem::Version.new(Sprockets::VERSION) >= Gem::Version.new('3.0')
+    require 'sprockets/sass/sass_processor'
+    require 'sprockets/sass/scss_processor'
 
-      unregister_preprocessor 'text/css', DirectiveProcessor
+    register_engine '.sass', Sass::SassProcessor, mime_type: 'text/css'
+    register_engine '.scss', Sass::ScssProcessor, mime_type: 'text/css'
 
-      register_engine '.sass', Sass::SassProcessor, mime_type: 'text/css'
-      register_engine '.scss', Sass::ScssProcessor, mime_type: 'text/css'
-    else
-      register_engine '.sass', Sass::SassTemplate
-      register_engine '.scss', Sass::ScssTemplate
-    end
+    # register_engine '.sass', Sass::SassTemplate
+    # register_engine '.scss', Sass::ScssTemplate
+  else
+    register_engine '.sass', Sass::SassTemplate
+    register_engine '.scss', Sass::ScssTemplate
+  end
 end

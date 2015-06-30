@@ -88,7 +88,7 @@ module Sprockets
           :syntax      => syntax,
           :cache_store => cache_store,
           :importer    => importer,
-          :custom      => { :sprockets_context => context }
+          :sprockets      => { :context => context }
         )
       end
 
